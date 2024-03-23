@@ -13,7 +13,7 @@ pub struct Cluster {
     pub myself: Node,
     /// Represents the list of *other* nodes.
     pub nodes: Vec<Node>,
-    /// Vector clock for node operations
+    /// Lamport clock for node operations
     pub node_ops_clock: LamportClock,
 }
 
