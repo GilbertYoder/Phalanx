@@ -1,9 +1,11 @@
 mod controllers;
 mod models;
+mod utils;
 
 use axum::{body::Bytes, extract::Path, routing::get, routing::post, Json, Router};
 use clap::Parser;
 use serde_json::{json, Value};
+use utils::lamport_clock::LamportClock;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -41,6 +43,7 @@ async fn main() {
     let cluster = Arc::new(Mutex::new(Cluster {
         nodes: vec![],
         myself,
+        node_ops_clock: LamportClock::new()
     }));
 
     let app_state = Arc::new(Mutex::new(State {
