@@ -7,6 +7,7 @@ use axum::{
     routing::get,
     Router,
 };
+use clap::Parser;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -14,13 +15,22 @@ use std::{
 
 use phalanx::Phalanx;
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Port
+    #[arg(short, long, default_value_t = String::from("8000"))]
+    port: String,
+}
+
 #[tokio::main]
 async fn main() {
+    let args = Args::parse();
+
     let phalanx = Arc::new(Phalanx {
         state: Mutex::new(HashMap::new()),
     });
 
-    // build our application with a single route
     let app = Router::new().route(
         "/state/:id",
         get({
@@ -33,7 +43,9 @@ async fn main() {
         }),
     );
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8004").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:".to_owned() + &args.port)
+        .await
+        .unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
