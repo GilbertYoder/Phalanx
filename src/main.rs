@@ -5,11 +5,11 @@ mod utils;
 use axum::{body::Bytes, extract::Path, routing::get, routing::post, Json, Router};
 use clap::Parser;
 use serde_json::{json, Value};
-use utils::lamport_clock::LamportClock;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
+use utils::lamport_clock::LamportClock;
 
 use controllers::{cluster_routes, state_routes};
 use models::cluster::{Cluster, Node};
@@ -43,10 +43,10 @@ async fn main() {
     let cluster = Arc::new(Mutex::new(Cluster {
         nodes: vec![],
         myself,
-        node_ops_clock: LamportClock::new()
+        node_ops_clock: LamportClock::new(),
     }));
 
-    let app_state = Arc::new(Mutex::new(State {
+    let state = Arc::new(Mutex::new(State {
         state: HashMap::new(),
     }));
 
@@ -54,11 +54,11 @@ async fn main() {
         .route(
             "/state/:id",
             get({
-                let shared_state = Arc::clone(&app_state);
+                let shared_state = Arc::clone(&state);
                 move |path| state_routes::get_state(path, shared_state)
             })
             .post({
-                let shared_state = Arc::clone(&app_state);
+                let shared_state = Arc::clone(&state);
                 move |path: Path<String>, payload: Bytes| {
                     state_routes::post_state(path, shared_state, payload)
                 }
@@ -72,10 +72,8 @@ async fn main() {
             }),
         );
 
-    let listener = tokio::net::TcpListener::bind(
-        ip.to_owned() + ":" + &port.to_string(),
-    )
-    .await
-    .unwrap();
+    let listener = tokio::net::TcpListener::bind(ip.to_owned() + ":" + &port.to_string())
+        .await
+        .unwrap();
     axum::serve(listener, app).await.unwrap();
 }
