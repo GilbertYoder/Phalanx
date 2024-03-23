@@ -1,11 +1,15 @@
-use std::sync::Mutex;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
 pub struct Node {
     pub ip: String,
     pub port: usize,
-    pub name: String,
     pub last_heartbeat: usize,
 }
 pub struct Cluster {
+    /// Represents the current node.
+    pub myself: Node,
+    /// Represents the list of *other* nodes.
     pub nodes: Vec<Node>,
 }
 
