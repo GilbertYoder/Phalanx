@@ -1,6 +1,6 @@
 mod controllers;
 mod models;
-mod phalanx;
+
 use axum::{body::Bytes, extract::Path, routing::get, Router};
 use clap::Parser;
 use std::{
@@ -9,8 +9,8 @@ use std::{
 };
 
 use controllers::state_routes;
+use models::node::Node;
 use models::state::State;
-use phalanx::Node;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
