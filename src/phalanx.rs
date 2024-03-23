@@ -12,3 +12,9 @@ pub struct Phalanx {
     pub state: Mutex<HashMap<String, String>>,
     pub nodes: Mutex<Vec<Node>>,
 }
+
+impl Phalanx {
+    pub fn get(&self) {
+
+    }
+}

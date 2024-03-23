@@ -1,4 +1,5 @@
 mod phalanx;
+mod state;
 use axum::{
     body::Bytes,
     extract::Path,
@@ -13,13 +14,14 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use phalanx::{Node, Phalanx};
+use phalanx::Node;
+use state::State;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
     /// IP Address
-    #[arg(short, long, default_value_t = String::from("localhost"))]
+    #[arg(short, long, default_value_t = String::from("0.0.0.0"))]
     ip: String,
 
     /// Port
@@ -28,7 +30,7 @@ struct Args {
 
     /// Name
     #[arg(short, long)]
-    name: String
+    name: String,
 }
 
 #[tokio::main]
@@ -42,32 +44,30 @@ async fn main() {
         last_heartbeat: 0,
     };
 
-    let phalanx = Arc::new(Phalanx {
+    let app_state = Arc::new(State {
         state: Mutex::new(HashMap::new()),
-        nodes: Mutex::new(vec![])
     });
 
     let app = Router::new().route(
         "/state/:id",
         get({
-            let shared_state = Arc::clone(&phalanx);
+            let shared_state = Arc::clone(&app_state);
             move |path| get_state(path, shared_state)
         })
         .post({
-            let shared_state = Arc::clone(&phalanx);
+            let shared_state = Arc::clone(&app_state);
             move |path: Path<String>, payload: Bytes| post_state(path, shared_state, payload)
         }),
     );
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:".to_owned() + &args.port.to_string())
+    let listener = tokio::net::TcpListener::bind(node.ip + ":" + &node.port.to_string())
         .await
         .unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn get_state(Path(id): Path<String>, phalanx: Arc<Phalanx>) -> impl IntoResponse {
-    let state = phalanx.state.lock().unwrap();
-    match state.get(&id) {
+async fn get_state(Path(id): Path<String>, app_state: Arc<State>) -> impl IntoResponse {
+    match app_state.get(&id) {
         Some(value) => Response::builder()
             .status(StatusCode::OK)
             .body(value.to_string())
@@ -81,13 +81,13 @@ async fn get_state(Path(id): Path<String>, phalanx: Arc<Phalanx>) -> impl IntoRe
 
 async fn post_state(
     Path(id): Path<String>,
-    phalanx: Arc<Phalanx>,
+    app_state: Arc<State>,
     payload: Bytes,
 ) -> impl IntoResponse {
-    let mut state = phalanx.state.lock().unwrap();
-    state.insert(
-        id,
-        String::from_utf8(payload.to_vec()).expect("Bad boys bad boys.."),
-    );
-    "ok"
+    let value = String::from_utf8(payload.to_vec()).expect("Error w/ payload Bytes.");
+    app_state.set(id, value.clone());
+    Response::builder()
+        .status(StatusCode::CREATED)
+        .body(value)
+        .unwrap()
 }
