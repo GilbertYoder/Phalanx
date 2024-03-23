@@ -13,22 +13,38 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use phalanx::Phalanx;
+use phalanx::{Node, Phalanx};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
+    /// IP Address
+    #[arg(short, long, default_value_t = String::from("localhost"))]
+    ip: String,
+
     /// Port
-    #[arg(short, long, default_value_t = String::from("8000"))]
-    port: String,
+    #[arg(short, long, default_value_t = 8000)]
+    port: usize,
+
+    /// Name
+    #[arg(short, long)]
+    name: String
 }
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
 
+    let node = Node {
+        ip: args.ip,
+        port: args.port,
+        name: args.name,
+        last_heartbeat: 0,
+    };
+
     let phalanx = Arc::new(Phalanx {
         state: Mutex::new(HashMap::new()),
+        nodes: Mutex::new(vec![])
     });
 
     let app = Router::new().route(
@@ -43,7 +59,7 @@ async fn main() {
         }),
     );
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:".to_owned() + &args.port)
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:".to_owned() + &args.port.to_string())
         .await
         .unwrap();
     axum::serve(listener, app).await.unwrap();
