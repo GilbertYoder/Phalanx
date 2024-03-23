@@ -9,7 +9,7 @@ use std::{
 };
 
 use controllers::state_routes;
-use models::node::Node;
+use models::cluster::Node;
 use models::state::State;
 
 #[derive(Parser, Debug)]
@@ -39,9 +39,9 @@ async fn main() {
         last_heartbeat: 0,
     };
 
-    let app_state = Arc::new(State {
-        state: Mutex::new(HashMap::new()),
-    });
+    let app_state = Arc::new(Mutex::new(State {
+        state: HashMap::new(),
+    }));
 
     let app = Router::new().route(
         "/state/:id",
