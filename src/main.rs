@@ -44,6 +44,7 @@ async fn main() {
         nodes: vec![],
         myself,
         node_ops_clock: LamportClock::new(),
+        node_ops: vec![],
     }));
 
     let state = Arc::new(Mutex::new(State {
@@ -69,6 +70,13 @@ async fn main() {
             post({
                 let shared_cluster = Arc::clone(&cluster);
                 move |payload| cluster_routes::post_node(payload, shared_cluster)
+            }),
+        )
+        .route(
+            "/gossip/nodes",
+            post({
+                let shared_cluster = Arc::clone(&cluster);
+                move |payload| cluster_routes::node_gossip(payload, shared_cluster)
             }),
         );
 
