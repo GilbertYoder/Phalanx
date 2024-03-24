@@ -37,7 +37,7 @@ impl Cluster {
     }
 
     pub fn recieve_node_gossip(&mut self, gossip: Gossip) {
-        if !self.recieved_gossip.contains(&gossip.id) {
+        if self.recieved_gossip.contains(&gossip.id) {
             return;
         }
         self.node_ops_clock.recieve(gossip.time);
