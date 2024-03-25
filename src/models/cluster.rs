@@ -1,19 +1,19 @@
 use crate::utils::lamport_clock::LamportClock;
 use crate::models::state::Data;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use uuid::Uuid;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Serialize)]
 pub struct Node {
     pub ip: String,
     pub port: usize,
     pub last_heartbeat: usize,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Cluster {
     pub myself: Node,
     pub nodes: Vec<Node>,
@@ -26,6 +26,9 @@ pub struct Cluster {
 impl Cluster {
     pub fn gossip(&self, rumor: &Rumor) {
         for node in self.nodes.iter() {
+            if node.ip == self.myself.ip && node.port == self.myself.port {
+                continue;
+            }
             println!("Gossiping to {}", node.ip);
         }
     }
@@ -79,7 +82,7 @@ impl Cluster {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub enum RumorMethod {
     GET,
     SET,
@@ -87,7 +90,7 @@ pub enum RumorMethod {
     APPEND,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Rumor {
     pub id: String,
     pub method: RumorMethod,

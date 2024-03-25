@@ -4,8 +4,15 @@ use axum::{
     extract::Path,
     http::{Response, StatusCode},
     response::IntoResponse,
+    Json,
 };
+use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
+
+pub async fn get_entire_state(app_state: Arc<Mutex<Cluster>>) -> Json<Value> {
+    let state = app_state.lock().unwrap();
+    Json(json!(&*state))
+}
 
 pub async fn get_state(
     Path(id): Path<String>,

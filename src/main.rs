@@ -41,7 +41,7 @@ async fn main() {
     };
 
     let cluster = Arc::new(Mutex::new(Cluster {
-        nodes: vec![],
+        nodes: vec![myself.clone()],
         myself,
         clock: LamportClock::new(),
         data: Data {
@@ -52,6 +52,13 @@ async fn main() {
     }));
 
     let app = Router::new()
+        .route(
+            "/state",
+            get({
+                let shared_state = Arc::clone(&cluster);
+                move || state_routes::get_entire_state(shared_state)
+            })
+        )
         .route(
             "/state/:id",
             get({
