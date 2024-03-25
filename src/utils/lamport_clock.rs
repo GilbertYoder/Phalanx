@@ -1,5 +1,7 @@
+use serde::Deserialize;
 use std::cmp::max;
 
+#[derive(Deserialize)]
 pub struct LamportClock {
     pub time: usize,
 }

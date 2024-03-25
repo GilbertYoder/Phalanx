@@ -1,10 +1,12 @@
+use serde::Deserialize;
 use std::collections::HashMap;
 
-pub struct State {
+#[derive(Deserialize)]
+pub struct Data {
     pub state: HashMap<String, String>,
 }
 
-impl State {
+impl Data {
     pub fn get(&self, key: &str) -> Option<String> {
         self.state.get(key).cloned()
     }

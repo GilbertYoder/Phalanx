@@ -1,4 +1,4 @@
-use crate::models::state::State;
+use crate::models::cluster::Cluster;
 use axum::{
     body::Bytes,
     extract::Path,
@@ -7,8 +7,11 @@ use axum::{
 };
 use std::sync::{Arc, Mutex};
 
-pub async fn get_state(Path(id): Path<String>, app_state: Arc<Mutex<State>>) -> impl IntoResponse {
-    match app_state.lock().unwrap().get(&id) {
+pub async fn get_state(
+    Path(id): Path<String>,
+    app_state: Arc<Mutex<Cluster>>,
+) -> impl IntoResponse {
+    match app_state.lock().unwrap().data.get(&id) {
         Some(value) => Response::builder()
             .status(StatusCode::OK)
             .body(value.to_string())
@@ -22,12 +25,12 @@ pub async fn get_state(Path(id): Path<String>, app_state: Arc<Mutex<State>>) -> 
 
 pub async fn post_state(
     Path(id): Path<String>,
-    app_state: Arc<Mutex<State>>,
+    app_state: Arc<Mutex<Cluster>>,
     payload: Bytes,
 ) -> impl IntoResponse {
     let mut state = app_state.lock().unwrap();
     let value = String::from_utf8(payload.to_vec()).expect("Error w/ payload Bytes.");
-    state.set(id, value.clone());
+    state.data.set(id, value.clone());
     Response::builder()
         .status(StatusCode::CREATED)
         .body(value)

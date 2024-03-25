@@ -13,7 +13,7 @@ use utils::lamport_clock::LamportClock;
 
 use controllers::{cluster_routes, state_routes};
 use models::cluster::{Cluster, Node};
-use models::state::State;
+use models::state::Data;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -44,23 +44,22 @@ async fn main() {
         nodes: vec![],
         myself,
         clock: LamportClock::new(),
+        data: Data {
+            state: HashMap::new()
+        },
         rumors: vec![],
         recieved_rumors_ids: HashSet::new(),
-    }));
-
-    let state = Arc::new(Mutex::new(State {
-        state: HashMap::new(),
     }));
 
     let app = Router::new()
         .route(
             "/state/:id",
             get({
-                let shared_state = Arc::clone(&state);
+                let shared_state = Arc::clone(&cluster);
                 move |path| state_routes::get_state(path, shared_state)
             })
             .post({
-                let shared_state = Arc::clone(&state);
+                let shared_state = Arc::clone(&cluster);
                 move |path: Path<String>, payload: Bytes| {
                     state_routes::post_state(path, shared_state, payload)
                 }
