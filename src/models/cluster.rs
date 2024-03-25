@@ -61,10 +61,11 @@ impl Cluster {
     async fn request_state(&mut self, from_who: String) -> Result<()> {
         let state = self.make_state_request(from_who).await?;
         let their_cluster: Cluster = serde_json::from_str(&state)?;
-        let my_new_state = Cluster {
-            myself: self.myself.clone(),
-            ..their_cluster
-        };
+        self.data = their_cluster.data;
+        self.nodes = their_cluster.nodes;
+        self.rumors = their_cluster.rumors;
+        self.clock = their_cluster.clock;
+        self.recieved_rumors_ids = their_cluster.recieved_rumors_ids;
         Ok(())
     }
 
