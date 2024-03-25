@@ -44,8 +44,8 @@ async fn main() {
         nodes: vec![],
         myself,
         clock: LamportClock::new(),
-        operations: vec![],
-        recieved_gossip: HashSet::new(),
+        rumors: vec![],
+        recieved_rumors_ids: HashSet::new(),
     }));
 
     let state = Arc::new(Mutex::new(State {

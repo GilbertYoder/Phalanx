@@ -24,7 +24,7 @@ pub async fn node_gossip(
     cluster: Arc<Mutex<Cluster>>,
 ) -> impl IntoResponse {
     let mut shared_cluster = cluster.lock().unwrap();
-    shared_cluster.recieve_node_gossip(payload);
+    shared_cluster.recieve_rumor(payload);
     Response::builder()
         .status(StatusCode::CREATED)
         .body("ok".to_string())

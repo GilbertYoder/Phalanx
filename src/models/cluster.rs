@@ -13,9 +13,9 @@ pub struct Node {
 pub struct Cluster {
     pub myself: Node,
     pub nodes: Vec<Node>,
-    pub recieved_gossip: HashSet<String>,
     pub clock: LamportClock,
-    pub operations: Vec<Rumor>,
+    pub rumors: Vec<Rumor>,
+    pub recieved_rumors_ids: HashSet<String>,
 }
 
 impl Cluster {
@@ -29,26 +29,37 @@ impl Cluster {
         self.nodes.push(node);
         self.clock.increment();
         let rumor = Rumor::new(
-            GossipMethod::SET,
+            RumorMethod::SET,
             "Hi".to_string(),
             self.clock.time,
+            self.myself.ip.to_string(),
         );
         self.gossip(&rumor);
     }
 
-    pub fn recieve_node_gossip(&mut self, rumor: Rumor) {
-        if self.recieved_gossip.contains(&rumor.id) {
+    pub fn recieve_rumor(&mut self, rumor: Rumor) {
+        // Don't apply the same rumor twice.
+        if self.recieved_rumors_ids.contains(&rumor.id) {
+            return;
+        }
+        // If this is the first rumor heard, go ahead and ask for state.
+        if self.clock.time == 0 {
+            self.request_state(rumor.initiator);
             return;
         }
         self.clock.recieve(rumor.time);
-        self.recieved_gossip.insert(rumor.id.clone());
+        self.recieved_rumors_ids.insert(rumor.id.clone());
         self.gossip(&rumor);
-        self.operations.push(rumor);
+        self.rumors.push(rumor);
+    }
+
+    pub fn request_state(&mut self, from_who: String) {
+        println!("Requesting state from {}", from_who);
     }
 }
 
 #[derive(Deserialize)]
-pub enum GossipMethod {
+pub enum RumorMethod {
     GET,
     SET,
     DELETE,
@@ -58,18 +69,20 @@ pub enum GossipMethod {
 #[derive(Deserialize)]
 pub struct Rumor {
     pub id: String,
-    pub method: GossipMethod,
+    pub method: RumorMethod,
     pub message: String,
     pub time: usize,
+    pub initiator: String,
 }
 
 impl Rumor {
-    pub fn new(method: GossipMethod, message: String, time: usize) -> Rumor {
+    pub fn new(method: RumorMethod, message: String, time: usize, initiator: String) -> Rumor {
         Rumor {
             id: Uuid::new_v4().to_string(),
             method,
             message,
             time,
+            initiator,
         }
     }
 }
