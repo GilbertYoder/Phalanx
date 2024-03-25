@@ -1,4 +1,4 @@
-use crate::models::cluster::{Cluster, Gossip, Node};
+use crate::models::cluster::{Cluster, Rumor, Node};
 use axum::{
     extract::Json,
     http::{Response, StatusCode},
@@ -20,7 +20,7 @@ pub async fn post_node(
 }
 
 pub async fn node_gossip(
-    Json(payload): Json<Gossip>,
+    Json(payload): Json<Rumor>,
     cluster: Arc<Mutex<Cluster>>,
 ) -> impl IntoResponse {
     let mut shared_cluster = cluster.lock().unwrap();

@@ -6,7 +6,7 @@ use axum::{body::Bytes, extract::Path, routing::get, routing::post, Json, Router
 use clap::Parser;
 use serde_json::{json, Value};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 use utils::lamport_clock::LamportClock;
@@ -43,8 +43,9 @@ async fn main() {
     let cluster = Arc::new(Mutex::new(Cluster {
         nodes: vec![],
         myself,
-        node_ops_clock: LamportClock::new(),
-        node_ops: vec![],
+        clock: LamportClock::new(),
+        operations: vec![],
+        recieved_gossip: HashSet::new(),
     }));
 
     let state = Arc::new(Mutex::new(State {

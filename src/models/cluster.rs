@@ -14,12 +14,12 @@ pub struct Cluster {
     pub myself: Node,
     pub nodes: Vec<Node>,
     pub recieved_gossip: HashSet<String>,
-    pub node_ops_clock: LamportClock,
-    pub node_ops: Vec<Gossip>,
+    pub clock: LamportClock,
+    pub operations: Vec<Rumor>,
 }
 
 impl Cluster {
-    pub fn gossip(&self, gossip: Gossip) {
+    pub fn gossip(&self, rumor: &Rumor) {
         for node in self.nodes.iter() {
             println!("Gossiping to {}", node.ip);
         }
@@ -27,23 +27,23 @@ impl Cluster {
 
     pub fn add_node(&mut self, node: Node) {
         self.nodes.push(node);
-        self.node_ops_clock.increment();
-        let gossip = Gossip::new(
+        self.clock.increment();
+        let rumor = Rumor::new(
             GossipMethod::SET,
             "Hi".to_string(),
-            self.node_ops_clock.counter,
+            self.clock.time,
         );
-        self.gossip(gossip);
+        self.gossip(&rumor);
     }
 
-    pub fn recieve_node_gossip(&mut self, gossip: Gossip) {
-        if self.recieved_gossip.contains(&gossip.id) {
+    pub fn recieve_node_gossip(&mut self, rumor: Rumor) {
+        if self.recieved_gossip.contains(&rumor.id) {
             return;
         }
-        self.node_ops_clock.recieve(gossip.time);
-        self.node_ops.push(gossip);
-        self.gossip(gossip);
-        self.recieved_gossip.insert(gossip.id);
+        self.clock.recieve(rumor.time);
+        self.recieved_gossip.insert(rumor.id.clone());
+        self.gossip(&rumor);
+        self.operations.push(rumor);
     }
 }
 
@@ -56,16 +56,16 @@ pub enum GossipMethod {
 }
 
 #[derive(Deserialize)]
-pub struct Gossip {
+pub struct Rumor {
     pub id: String,
     pub method: GossipMethod,
     pub message: String,
     pub time: usize,
 }
 
-impl Gossip {
-    pub fn new(method: GossipMethod, message: String, time: usize) -> Gossip {
-        Gossip {
+impl Rumor {
+    pub fn new(method: GossipMethod, message: String, time: usize) -> Rumor {
+        Rumor {
             id: Uuid::new_v4().to_string(),
             method,
             message,
