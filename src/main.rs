@@ -2,7 +2,13 @@ mod controllers;
 mod models;
 mod utils;
 
-use axum::{body::Bytes, extract::Path, routing::get, routing::post, Json, Router};
+use axum::{
+    body::Bytes,
+    extract::Path,
+    middleware::AddExtension,
+    routing::{get, post},
+    Extension, Json, Router,
+};
 use clap::Parser;
 use serde_json::{json, Value};
 use std::{
@@ -45,47 +51,23 @@ async fn main() {
         myself,
         clock: LamportClock::new(),
         data: Data {
-            state: HashMap::new()
+            state: HashMap::new(),
         },
         rumors: vec![],
         recieved_rumors_ids: HashSet::new(),
     }));
 
+    let shared_state = Arc::clone(&cluster);
+
     let app = Router::new()
-        .route(
-            "/state",
-            get({
-                let shared_state = Arc::clone(&cluster);
-                move || state_routes::get_entire_state(shared_state)
-            })
-        )
+        .route("/state", get(state_routes::get_entire_state))
         .route(
             "/state/:id",
-            get({
-                let shared_state = Arc::clone(&cluster);
-                move |path| state_routes::get_state(path, shared_state)
-            })
-            .post({
-                let shared_state = Arc::clone(&cluster);
-                move |path: Path<String>, payload: Bytes| {
-                    state_routes::post_state(path, shared_state, payload)
-                }
-            }),
+            get(state_routes::get_state).post(state_routes::post_state),
         )
-        .route(
-            "/nodes",
-            post({
-                let shared_cluster = Arc::clone(&cluster);
-                move |payload| cluster_routes::post_node(payload, shared_cluster)
-            }),
-        )
-        .route(
-            "/gossip/nodes",
-            post({
-                let shared_cluster = Arc::clone(&cluster);
-                move |payload| cluster_routes::node_gossip(payload, shared_cluster)
-            }),
-        );
+        .route("/nodes", post(cluster_routes::post_node))
+        .route("/gossip", post(cluster_routes::gossip))
+        .layer(Extension(shared_state));
 
     let listener = tokio::net::TcpListener::bind(ip.to_owned() + ":" + &port.to_string())
         .await

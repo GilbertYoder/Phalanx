@@ -1,7 +1,7 @@
 use crate::models::cluster::Cluster;
 use axum::{
     body::Bytes,
-    extract::Path,
+    extract::{Extension, Path},
     http::{Response, StatusCode},
     response::IntoResponse,
     Json,
@@ -9,14 +9,14 @@ use axum::{
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
 
-pub async fn get_entire_state(app_state: Arc<Mutex<Cluster>>) -> Json<Value> {
+pub async fn get_entire_state(Extension(app_state): Extension<Arc<Mutex<Cluster>>>) -> Json<Value> {
     let state = app_state.lock().unwrap();
     Json(json!(&*state))
 }
 
 pub async fn get_state(
     Path(id): Path<String>,
-    app_state: Arc<Mutex<Cluster>>,
+    Extension(app_state): Extension<Arc<Mutex<Cluster>>>,
 ) -> impl IntoResponse {
     match app_state.lock().unwrap().data.get(&id) {
         Some(value) => Response::builder()
@@ -32,7 +32,7 @@ pub async fn get_state(
 
 pub async fn post_state(
     Path(id): Path<String>,
-    app_state: Arc<Mutex<Cluster>>,
+    Extension(app_state): Extension<Arc<Mutex<Cluster>>>,
     payload: Bytes,
 ) -> impl IntoResponse {
     let mut state = app_state.lock().unwrap();

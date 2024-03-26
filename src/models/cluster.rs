@@ -1,5 +1,5 @@
-use crate::utils::lamport_clock::LamportClock;
 use crate::models::state::Data;
+use crate::utils::lamport_clock::LamportClock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -24,25 +24,22 @@ pub struct Cluster {
 }
 
 impl Cluster {
-    pub fn gossip(&self, rumor: &Rumor) {
+    pub async fn gossip(&self, rumor: Rumor) -> Result<()> {
         for node in self.nodes.iter() {
-            if node.ip == self.myself.ip && node.port == self.myself.port {
+            if node.ip == self.myself.ip.to_string()
+                && node.port.to_string() == self.myself.port.to_string()
+            {
                 continue;
             }
             println!("Gossiping to {}", node.ip);
+            let _ = Cluster::gossip_to_node(node, &rumor).await?;
         }
+        Ok(())
     }
 
     pub fn add_node(&mut self, node: Node) {
         self.nodes.push(node);
         self.clock.increment();
-        let rumor = Rumor::new(
-            RumorMethod::SET,
-            "Hi".to_string(),
-            self.clock.time,
-            self.myself.ip.to_string() + ":" + &self.myself.port.to_string(),
-        );
-        self.gossip(&rumor);
     }
 
     pub async fn recieve_rumor(&mut self, rumor: Rumor) {
@@ -52,12 +49,12 @@ impl Cluster {
         }
         // If this is the first rumor heard, go ahead and ask for state.
         if self.clock.time == 0 {
-            self.request_state(rumor.initiator).await;
+            let _ = self.request_state(rumor.initiator).await;
             return;
         }
         self.clock.recieve(rumor.time);
         self.recieved_rumors_ids.insert(rumor.id.clone());
-        self.gossip(&rumor);
+        let _ = self.gossip(rumor.clone()).await;
         self.rumors.push(rumor);
     }
 
@@ -80,9 +77,19 @@ impl Cluster {
         println!("Requesting state from {}", from_who);
         Ok(body)
     }
+
+    pub async fn gossip_to_node(node: &Node, rumor: &Rumor) -> Result<()> {
+        let client = reqwest::Client::new();
+        client
+            .post(node.ip.to_owned() + ":" + &node.port.to_string() + "/state")
+            .json(&rumor)
+            .send()
+            .await?;
+        Ok(())
+    }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub enum RumorMethod {
     GET,
     SET,
@@ -90,7 +97,7 @@ pub enum RumorMethod {
     APPEND,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Rumor {
     pub id: String,
     pub method: RumorMethod,
