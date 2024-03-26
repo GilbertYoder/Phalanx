@@ -7,35 +7,41 @@ use axum::{
 use axum_macros::debug_handler;
 use std::sync::{Arc, Mutex};
 
+fn add_node(cluster: Arc<Mutex<Cluster>>, node: Node) {
+    let mut shared_cluster = cluster.lock().unwrap();
+    shared_cluster.add_node(node);
+}
+
+fn get_rumor(cluster: Arc<Mutex<Cluster>>) -> Rumor {
+    let shared_cluster = cluster.lock().unwrap();
+    Rumor::new(
+        RumorMethod::SET,
+        "Hi".to_string(),
+        shared_cluster.clock.time.clone(),
+        shared_cluster.myself.ip.to_string().clone()
+            + ":"
+            + &shared_cluster.myself.port.to_string().clone(),
+    )
+}
+
+fn get_nodes(cluster: Arc<Mutex<Cluster>>) -> Vec<Node> {
+    let shared_cluster = cluster.lock().unwrap();
+    shared_cluster.nodes.clone()
+}
+
 #[debug_handler]
 pub async fn post_node(
     Extension(shared_state): Extension<Arc<Mutex<Cluster>>>,
     Json(payload): Json<Node>,
 ) -> impl IntoResponse {
-    {
-        let mut shared_cluster = shared_state.lock().unwrap();
-        shared_cluster.add_node(payload);
-        let rumor = Rumor::new(
-            RumorMethod::SET,
-            "Hi".to_string(),
-            shared_cluster.clock.time,
-            shared_cluster.myself.ip.to_string() + ":" + &shared_cluster.myself.port.to_string(),
-        );
-    }
-    match shared_cluster.gossip(rumor).await {
-        Ok(_) => {
-            return Response::builder()
-                .status(StatusCode::CREATED)
-                .body("ok".to_string())
-                .unwrap()
-        }
-        Err(e) => {
-            return Response::builder()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body(format!("Error processing request: {}", e))
-                .unwrap()
-        }
-    }
+    add_node(shared_state.clone(), payload);
+    let rumor = get_rumor(shared_state.clone());
+    let nodes = get_nodes(shared_state.clone());
+    Cluster::gossip(nodes, rumor).await;
+    return Response::builder()
+        .status(StatusCode::CREATED)
+        .body("ok".to_string())
+        .unwrap();
 }
 
 #[debug_handler]

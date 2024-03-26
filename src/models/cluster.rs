@@ -24,17 +24,11 @@ pub struct Cluster {
 }
 
 impl Cluster {
-    pub async fn gossip(&self, rumor: Rumor) -> Result<()> {
-        for node in self.nodes.iter() {
-            if node.ip == self.myself.ip.to_string()
-                && node.port.to_string() == self.myself.port.to_string()
-            {
-                continue;
-            }
+    pub async fn gossip(nodes: Vec<Node>, rumor: Rumor) {
+        for node in nodes.iter() {
             println!("Gossiping to {}", node.ip);
-            let _ = Cluster::gossip_to_node(node, &rumor).await?;
+            let _ = Cluster::gossip_to_node(node, &rumor).await.expect("Problem gossiping to node.");
         }
-        Ok(())
     }
 
     pub fn add_node(&mut self, node: Node) {
@@ -54,7 +48,7 @@ impl Cluster {
         }
         self.clock.recieve(rumor.time);
         self.recieved_rumors_ids.insert(rumor.id.clone());
-        let _ = self.gossip(rumor.clone()).await;
+        Cluster::gossip(self.nodes.clone(), rumor.clone()).await;
         self.rumors.push(rumor);
     }
 
@@ -81,7 +75,7 @@ impl Cluster {
     pub async fn gossip_to_node(node: &Node, rumor: &Rumor) -> Result<()> {
         let client = reqwest::Client::new();
         client
-            .post(node.ip.to_owned() + ":" + &node.port.to_string() + "/state")
+            .post("http://".to_owned() + &node.ip.to_string() + ":" + &node.port.to_string() + "/state")
             .json(&rumor)
             .send()
             .await?;
