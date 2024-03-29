@@ -17,7 +17,7 @@ use std::{
 };
 use utils::lamport_clock::LamportClock;
 
-use controllers::{cluster_routes, state_routes};
+use controllers::{cluster_routes};
 use models::cluster::{Cluster, Node};
 use models::state::Data;
 
@@ -46,28 +46,26 @@ async fn main() {
         last_heartbeat: 0,
     };
 
-    let cluster = Arc::new(Mutex::new(Cluster {
-        nodes: vec![myself.clone()],
-        myself,
-        clock: LamportClock::new(),
-        data: Data {
+    let cluster = Cluster {
+        nodes: Arc::new(Mutex::new(vec![myself.clone()])),
+        myself: Arc::new(Mutex::new(myself)),
+        clock: Arc::new(Mutex::new(LamportClock::new())),
+        data: Arc::new(Mutex::new(Data {
             state: HashMap::new(),
-        },
-        rumors: vec![],
-        recieved_rumors_ids: HashSet::new(),
-    }));
-
-    let shared_state = Arc::clone(&cluster);
+        })),
+        rumors: Arc::new(Mutex::new(vec![])),
+        recieved_rumors_ids: Arc::new(Mutex::new(HashSet::new())),
+    };
 
     let app = Router::new()
-        .route("/state", get(state_routes::get_entire_state))
+        // .route("/state", get(state_routes::get_entire_state))
         .route(
             "/state/:id",
-            get(state_routes::get_state).post(state_routes::post_state),
+            get(cluster_routes::get_state).post(cluster_routes::post_state),
         )
         .route("/nodes", post(cluster_routes::post_node))
         .route("/gossip", post(cluster_routes::gossip))
-        .layer(Extension(shared_state));
+        .layer(Extension(cluster));
 
     let listener = tokio::net::TcpListener::bind(ip.to_owned() + ":" + &port.to_string())
         .await

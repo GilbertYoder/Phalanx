@@ -2,6 +2,7 @@ use crate::models::state::Data;
 use crate::utils::lamport_clock::LamportClock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -14,7 +15,7 @@ pub struct Node {
 }
 
 #[derive(Deserialize, Serialize)]
-pub struct Cluster {
+pub struct SerializableCluster {
     pub myself: Node,
     pub nodes: Vec<Node>,
     pub clock: LamportClock,
@@ -23,59 +24,102 @@ pub struct Cluster {
     pub data: Data,
 }
 
+#[derive(Clone)]
+pub struct Cluster {
+    pub myself: Arc<Mutex<Node>>,
+    pub nodes: Arc<Mutex<Vec<Node>>>,
+    pub clock: Arc<Mutex<LamportClock>>,
+    pub rumors: Arc<Mutex<Vec<Rumor>>>,
+    pub recieved_rumors_ids: Arc<Mutex<HashSet<String>>>,
+    pub data: Arc<Mutex<Data>>,
+}
+
 impl Cluster {
-    pub async fn gossip(nodes: Vec<Node>, rumor: Rumor) {
-        for node in nodes.iter() {
+    fn get_nodes(&self) -> Vec<Node> {
+        self.nodes.lock().unwrap().clone()
+    }
+
+    pub async fn gossip(&mut self, rumor: Rumor) {
+        for node in self.get_nodes() {
             println!("Gossiping to {}", node.ip);
-            let _ = Cluster::gossip_to_node(node, &rumor).await.expect("Problem gossiping to node.");
+            let _ = Cluster::gossip_to_node(&node, &rumor)
+                .await
+                .expect("Problem gossiping to node.");
         }
     }
 
     pub fn add_node(&mut self, node: Node) {
-        self.nodes.push(node);
-        self.clock.increment();
+        let mut nodes = self.nodes.lock().unwrap();
+        nodes.push(node);
+        let mut clock = self.clock.lock().unwrap();
+        clock.increment();
+    }
+
+    fn update_self(&mut self, new_state: SerializableCluster) {
+        let mut data = self.data.lock().unwrap();
+        *data = new_state.data;
+        let mut nodes = self.nodes.lock().unwrap();
+        *nodes = new_state.nodes;
+        let mut rumors = self.rumors.lock().unwrap();
+        *rumors = new_state.rumors;
+        let mut clock = self.clock.lock().unwrap();
+        *clock = new_state.clock;
+        let mut received_rumors_ids = self.recieved_rumors_ids.lock().unwrap();
+        *received_rumors_ids = new_state.recieved_rumors_ids;
     }
 
     pub async fn recieve_rumor(&mut self, rumor: Rumor) {
         // Don't apply the same rumor twice.
-        if self.recieved_rumors_ids.contains(&rumor.id) {
-            return;
+        {
+            let received_rumors = self.recieved_rumors_ids.lock().unwrap();
+            if received_rumors.contains(&rumor.id) {
+                return;
+            }
         }
         // If this is the first rumor heard, go ahead and ask for state.
-        if self.clock.time == 0 {
-            let _ = self.request_state(rumor.initiator).await;
-            return;
+        {
+            let clock = self.clock.lock().unwrap();
+            if clock.time == 0 {
+                drop(clock);
+                let state = self.make_state_request(rumor.initiator).await;
+                let their_cluster: SerializableCluster =
+                    serde_json::from_str(&state).expect("Oops");
+                self.update_self(their_cluster);
+                return;
+            }
         }
-        self.clock.recieve(rumor.time);
-        self.recieved_rumors_ids.insert(rumor.id.clone());
-        Cluster::gossip(self.nodes.clone(), rumor.clone()).await;
-        self.rumors.push(rumor);
+        {
+            let mut clock = self.clock.lock().unwrap();
+            clock.recieve(rumor.time);
+            let mut received_rumors = self.recieved_rumors_ids.lock().unwrap();
+            received_rumors.insert(rumor.id.clone());
+        }
+        self.gossip(rumor.clone()).await;
+        let mut rumors = self.rumors.lock().unwrap();
+        rumors.push(rumor);
     }
 
-    async fn request_state(&mut self, from_who: String) -> Result<()> {
-        let state = self.make_state_request(from_who).await?;
-        let their_cluster: Cluster = serde_json::from_str(&state)?;
-        self.data = their_cluster.data;
-        self.nodes = their_cluster.nodes;
-        self.rumors = their_cluster.rumors;
-        self.clock = their_cluster.clock;
-        self.recieved_rumors_ids = their_cluster.recieved_rumors_ids;
-        Ok(())
-    }
-
-    async fn make_state_request(&mut self, from_who: String) -> Result<String> {
+    async fn make_state_request(&mut self, from_who: String) -> String {
         let body = reqwest::get(from_who.to_owned() + "/state")
-            .await?
+            .await
+            .expect("oops")
             .text()
-            .await?;
+            .await
+            .expect("oops again");
         println!("Requesting state from {}", from_who);
-        Ok(body)
+        body
     }
 
     pub async fn gossip_to_node(node: &Node, rumor: &Rumor) -> Result<()> {
         let client = reqwest::Client::new();
         client
-            .post("http://".to_owned() + &node.ip.to_string() + ":" + &node.port.to_string() + "/state")
+            .post(
+                "http://".to_owned()
+                    + &node.ip.to_string()
+                    + ":"
+                    + &node.port.to_string()
+                    + "/gossip",
+            )
             .json(&rumor)
             .send()
             .await?;
