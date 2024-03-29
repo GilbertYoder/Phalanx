@@ -35,6 +35,17 @@ pub struct Cluster {
 }
 
 impl Cluster {
+    pub fn get_serializable(&self) -> SerializableCluster {
+        SerializableCluster {
+            myself: self.myself.lock().unwrap().clone(),
+            nodes: self.nodes.lock().unwrap().clone(),
+            clock: self.clock.lock().unwrap().clone(),
+            rumors: self.rumors.lock().unwrap().clone(),
+            recieved_rumors_ids: self.recieved_rumors_ids.lock().unwrap().clone(),
+            data: self.data.lock().unwrap().clone(),
+        }
+    }
+
     fn get_nodes(&self) -> Vec<Node> {
         self.nodes.lock().unwrap().clone()
     }
@@ -68,25 +79,27 @@ impl Cluster {
         *received_rumors_ids = new_state.recieved_rumors_ids;
     }
 
+    fn is_first_rumor(&self) -> bool {
+        let clock = self.clock.lock().unwrap();
+        clock.time == 0
+    }
+
+    fn has_heard_rumor(&self, rumor_id: &str) -> bool {
+        let received_rumors = self.recieved_rumors_ids.lock().unwrap();
+        received_rumors.contains(rumor_id)
+    }
+
     pub async fn recieve_rumor(&mut self, rumor: Rumor) {
         // Don't apply the same rumor twice.
-        {
-            let received_rumors = self.recieved_rumors_ids.lock().unwrap();
-            if received_rumors.contains(&rumor.id) {
-                return;
-            }
+        if self.has_heard_rumor(&rumor.id) {
+            return;
         }
         // If this is the first rumor heard, go ahead and ask for state.
-        {
-            let clock = self.clock.lock().unwrap();
-            if clock.time == 0 {
-                drop(clock);
-                let state = self.make_state_request(rumor.initiator).await;
-                let their_cluster: SerializableCluster =
-                    serde_json::from_str(&state).expect("Oops");
-                self.update_self(their_cluster);
-                return;
-            }
+        if self.is_first_rumor() {
+            let state = self.make_state_request(rumor.initiator).await;
+            let their_cluster: SerializableCluster = serde_json::from_str(&state).expect("Oops");
+            self.update_self(their_cluster);
+            return;
         }
         {
             let mut clock = self.clock.lock().unwrap();

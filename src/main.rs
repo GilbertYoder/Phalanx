@@ -25,7 +25,7 @@ use models::state::Data;
 #[command(version, about, long_about = None)]
 struct Args {
     /// IP Address
-    #[arg(short, long, default_value_t = String::from("0.0.0.0"))]
+    #[arg(short, long, default_value_t = String::from("localhost"))]
     ip: String,
 
     /// Port
@@ -58,7 +58,7 @@ async fn main() {
     };
 
     let app = Router::new()
-        // .route("/state", get(state_routes::get_entire_state))
+        .route("/state", get(cluster_routes::get_entire_state))
         .route(
             "/state/:id",
             get(cluster_routes::get_state).post(cluster_routes::post_state),

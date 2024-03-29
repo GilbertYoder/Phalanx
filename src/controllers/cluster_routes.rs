@@ -1,4 +1,4 @@
-use crate::models::cluster::{Cluster, Node, Rumor, RumorMethod};
+use crate::models::cluster::{Cluster, Node, Rumor, RumorMethod, SerializableCluster};
 use axum::{
     body::Bytes,
     extract::{Extension, Json, Path},
@@ -6,6 +6,7 @@ use axum::{
     response::IntoResponse,
 };
 use axum_macros::debug_handler;
+use serde_json::json;
 
 fn get_rumor(cluster: &Cluster) -> Rumor {
     let myself = cluster.myself.lock().unwrap();
@@ -38,8 +39,8 @@ pub async fn gossip(
     Extension(mut cluster): Extension<Cluster>,
     Json(payload): Json<Rumor>,
 ) -> impl IntoResponse {
-    println!("Recieved rumor.");
-    cluster.recieve_rumor(payload);
+    println!("Recieved rumor");
+    cluster.recieve_rumor(payload).await;
     Response::builder()
         .status(StatusCode::CREATED)
         .body("ok".to_string())
@@ -73,4 +74,10 @@ pub async fn post_state(
         .status(StatusCode::CREATED)
         .body(value)
         .unwrap()
+}
+
+pub async fn get_entire_state(
+    Extension(cluster): Extension<Cluster>
+) -> impl IntoResponse {
+    Json(json!(cluster.get_serializable()))
 }
